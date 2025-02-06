@@ -1,5 +1,3 @@
-requests
-httpagentparser
 pypiwin32
 requests
 httpagentparser
